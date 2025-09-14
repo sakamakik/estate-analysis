@@ -1,0 +1,19 @@
+{
+  "address": "1160, Rue MacKay, app. 2005",
+  "price": "489000",
+  "bedrooms": "1",
+  "bathrooms": "1",
+  "sqft": null,
+  "year_of_construction": "2022",
+  "municipal_assessment_total": "444600",
+  "municipal_terrain": "51700",
+  "municipal_building": "392900",
+  "taxes_municipal": "231",
+  "taxes_school": "31",
+  "condo_fee": "318",
+  "url": "https://www.centris.ca/fr/condo~a-vendre~montreal-ville-marie/13345959",
+  "centris_id": "13345959",
+  "extraction_date": "2025-09-14T03:12:28.525570",
+  "photo_url": "https://mspublic.centris.ca/media.ashx?id=ADDD250DEE63466DDDDDDDDDD1&t=pi&w=640&h=480&sm=c",
+  "photo_path": "13345959.jpeg"
+}

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Property Price vs Assessment Chart</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-8">
+    <div class="max-w-6xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">Property Analysis Chart</h1>
+            <a href="/" class="text-blue-500 hover:text-blue-700">Back to Extractor</a>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <div class="mb-6 flex items-center space-x-4">
+                <label class="text-gray-700 font-medium">Y-Axis Metric:</label>
+                <select id="metricSelector" class="form-select rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <option value="assessment">Municipal Assessment ($)</option>
+                    <option value="pricePerSqft">Price per Sq.Ft. ($)</option>
+                </select>
+            </div>
+            <canvas id="propertyChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        async function fetchData() {
+            const response = await fetch('/api/property-data');
+            const data = await response.json();
+            return data;
+        }
+
+        let chart = null;
+
+        function getYValue(item, metric) {
+            switch(metric) {
+                case 'pricePerSqft':
+                    return item.price_per_sqft;
+                case 'assessment':
+                default:
+                    return item.assessment;
+            }
+        }
+
+        function getYAxisLabel(metric) {
+            switch(metric) {
+                case 'pricePerSqft':
+                    return 'Price per Sq.Ft. ($)';
+                case 'assessment':
+                default:
+                    return 'Municipal Assessment ($)';
+            }
+        }
+
+        async function initChart() {
+            if (chart) {
+                chart.destroy();
+            }
+
+            const data = await fetchData();
+            const metric = document.getElementById('metricSelector').value;
+            
+            // Filter data based on selected metric
+            const validData = data.filter(item => getYValue(item, metric) !== null);
+            
+            // Prepare data for the chart
+            const chartData = {
+                datasets: [{
+                    label: 'Properties',
+                    data: validData.map(item => ({
+                        x: item.price,
+                        y: getYValue(item, metric),
+                        address: item.address,
+                        centris_id: item.centris_id,
+                        photo_path: item.photo_path,
+                        price: item.price,
+                        assessment: item.assessment,
+                        sqft: item.sqft,
+                        price_per_sqft: item.price_per_sqft
+                    })),
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1,
+                    pointRadius: 6,
+                    pointHoverRadius: 8
+                }]
+            };
+
+            // Add reference line (y = x)
+            const minValue = Math.min(
+                ...data.map(item => Math.min(item.price, item.assessment))
+            );
+            const maxValue = Math.max(
+                ...data.map(item => Math.max(item.price, item.assessment))
+            );
+
+            chartData.datasets.push({
+                label: 'Price = Assessment',
+                data: [
+                    { x: minValue, y: minValue },
+                    { x: maxValue, y: maxValue }
+                ],
+                borderColor: 'rgba(255, 99, 132, 0.5)',
+                borderWidth: 2,
+                borderDash: [5, 5],
+                pointRadius: 0,
+                fill: false
+            });
+
+            // Create the chart
+            const ctx = document.getElementById('propertyChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'scatter',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    aspectRatio: 1.5,
+                    plugins: {
+                        tooltip: {
+                            enabled: false,
+                            external: function(context) {
+                                // Tooltip Element
+                                let tooltipEl = document.getElementById('chartjs-tooltip');
+
+                                // Create element on first render
+                                if (!tooltipEl) {
+                                    tooltipEl = document.createElement('div');
+                                    tooltipEl.id = 'chartjs-tooltip';
+                                    tooltipEl.classList.add('bg-white', 'p-4', 'rounded-lg', 'shadow-lg', 'border');
+                                    document.body.appendChild(tooltipEl);
+                                }
+
+                                // Hide if no tooltip
+                                const tooltipModel = context.tooltip;
+                                if (tooltipModel.opacity === 0) {
+                                    tooltipEl.style.opacity = 0;
+                                    return;
+                                }
+
+                                // Set Text
+                                if (tooltipModel.body) {
+                                    const point = tooltipModel.dataPoints[0].raw;
+                                    
+                                    let innerHtml = `
+                                        <div class="max-w-sm">
+                                            ${point.photo_path ? 
+                                                `<img src="/data/${point.photo_path}" 
+                                                     class="w-full h-48 object-cover mb-3 rounded"
+                                                     alt="Property photo">` : ''}
+                                            <div class="space-y-1">
+                                                <p class="font-semibold">${point.address || 'Address not available'}</p>
+                                                <p>Price: $${point.price.toLocaleString()}</p>
+                                                ${point.assessment ? `<p>Assessment: $${point.assessment.toLocaleString()}</p>` : ''}
+                                                ${point.sqft ? `<p>Area: ${point.sqft} sq.ft.</p>` : ''}
+                                                ${point.price_per_sqft ? `<p>Price/sq.ft.: $${point.price_per_sqft.toLocaleString()}</p>` : ''}
+                                                <p class="text-sm text-gray-500">ID: ${point.centris_id}</p>
+                                            </div>
+                                        </div>
+                                    `;
+                                    tooltipEl.innerHTML = innerHtml;
+                                }
+
+                                // Position tooltip and show
+                                const position = context.chart.canvas.getBoundingClientRect();
+                                tooltipEl.style.opacity = 1;
+                                tooltipEl.style.position = 'absolute';
+                                tooltipEl.style.left = position.left + window.pageXOffset + tooltipModel.caretX + 10 + 'px';
+                                tooltipEl.style.top = position.top + window.pageYOffset + tooltipModel.caretY + 'px';
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Property Price vs Municipal Assessment'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            title: {
+                                display: true,
+                                text: 'Price ($)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: getYAxisLabel(metric)
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            return chart;
+        }
+
+        // Initialize the chart and set up metric selector
+        document.addEventListener('DOMContentLoaded', () => {
+            initChart();
+            document.getElementById('metricSelector').addEventListener('change', initChart);
+        });
+    </script>
+</body>
+</html>
